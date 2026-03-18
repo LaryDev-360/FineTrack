@@ -1,0 +1,273 @@
+# FineTrack — Backend API
+
+API REST du projet **FineTrack** : backend Django 5.x + Django REST Framework (DRF), base PostgreSQL, authentification JWT. Conçu pour une application mobile **offline-first** avec synchronisation optionnelle.
+
+---
+
+## Stack
+
+| Composant | Technologie |
+|-----------|-------------|
+| Framework | Django 5.x |
+| API | Django REST Framework (DRF) |
+| Langage | Python 3.10+ |
+| Base de données | PostgreSQL |
+| Authentification | JWT (djangorestframework-simplejwt) |
+| Déploiement | Docker / Docker Compose (recommandé) |
+
+---
+
+## Prérequis
+
+- **Python** 3.10 ou supérieur  
+- **PostgreSQL** 12+ (ou instance distante)  
+- **pip** et **venv** (ou Poetry)
+
+---
+
+## Installation
+
+### 1. Environnement virtuel
+
+```bash
+cd backend
+python3 -m venv venv
+source venv/bin/activate   # Linux/macOS
+# venv\Scripts\activate   # Windows
+```
+
+### 2. Dépendances
+
+```bash
+pip install -r requirements.txt
+```
+
+### 3. Variables d'environnement
+
+Créer un fichier `.env` à la racine de `backend/` (voir `.env.example`) :
+
+```env
+SECRET_KEY=votre-secret-key-django
+DEBUG=True
+ALLOWED_HOSTS=localhost,127.0.0.1
+DATABASE_URL=postgres://user:password@localhost:5432/finetrack_db
+CORS_ALLOWED_ORIGINS=http://localhost:*
+```
+
+### 4. Base de données
+
+```bash
+python manage.py migrate
+```
+
+### 5. Lancer le serveur
+
+```bash
+python manage.py runserver
+```
+
+L’API est disponible sur **http://127.0.0.1:8000/** (ou le port configuré).
+
+---
+
+## Structure du projet (backend)
+
+```
+backend/
+├── manage.py
+├── requirements.txt
+├── .env.example
+├── .env                 # (ignoré par git)
+├── README.md            # ce fichier
+├── config/              # projet Django (settings, urls, wsgi)
+│   ├── __init__.py
+│   ├── settings.py
+│   ├── urls.py
+│   └── wsgi.py
+├── apps/
+│   ├── accounts/        # User, UserProfile, auth JWT
+│   ├── core/            # Comptes (Account), transferts
+│   ├── categories/      # Catégories
+│   ├── transactions/    # Transactions, bulk-sync
+│   ├── budgets/         # Budgets
+│   ├── statistics/      # Résumés, par catégorie, tendances
+│   └── export/          # Export CSV / JSON
+└── tests/
+```
+
+*(La structure réelle pourra être ajustée selon l’organisation des apps Django.)*
+
+---
+
+## Modèles de données
+
+### User & UserProfile
+
+- **User** : modèle Django (email/password ou téléphone selon implémentation).
+- **UserProfile** : `phone_number`, `country`, `default_currency` (ex. `XOF`), `language` (`fr`/`en`), `created_at`, `updated_at`.
+
+### Account (comptes / portefeuilles)
+
+- **Types** : `cash`, `bank`, `mobile_money`, `savings`, `other`.
+- **Champs** : `user`, `name`, `account_type`, `initial_balance`, `current_balance`, `currency`, `color`, `icon`, `is_active`, timestamps.
+
+### Category
+
+- **Types** : `expense`, `income`.
+- **Champs** : `user`, `name`, `category_type`, `color`, `icon`, `is_default`, timestamps.
+
+### Transaction
+
+- **Types** : `expense`, `income`, `transfer`.
+- **Champs** : `user`, `transaction_type`, `amount`, `account`, `category` (nullable), `to_account` (pour transferts), `date`, `note`, `is_synced`, timestamps.
+
+### Budget
+
+- **Champs** : `user`, `category` (nullable pour budget global), `amount`, `period_start`, `period_end`, `is_global`, timestamps.
+
+---
+
+## API — Endpoints
+
+Base URL : `/api/`
+
+### Authentification
+
+| Méthode | Endpoint | Description |
+|---------|----------|-------------|
+| POST | `/api/auth/register/` | Création de compte |
+| POST | `/api/auth/login/` | Connexion (retourne JWT) |
+| POST | `/api/auth/logout/` | Déconnexion |
+| POST | `/api/auth/refresh/` | Rafraîchissement du token JWT |
+| POST | `/api/auth/password-reset/` | Demande de réinitialisation mot de passe |
+| GET  | `/api/auth/profile/` | Récupération du profil |
+| PUT  | `/api/auth/profile/` | Mise à jour du profil |
+
+### Comptes (Accounts)
+
+| Méthode | Endpoint | Description |
+|---------|----------|-------------|
+| GET    | `/api/accounts/` | Liste des comptes |
+| POST   | `/api/accounts/` | Création d’un compte |
+| GET    | `/api/accounts/{id}/` | Détails d’un compte |
+| PUT    | `/api/accounts/{id}/` | Mise à jour |
+| DELETE | `/api/accounts/{id}/` | Suppression |
+| POST   | `/api/accounts/transfer/` | Transfert entre deux comptes |
+
+### Catégories (Categories)
+
+| Méthode | Endpoint | Description |
+|---------|----------|-------------|
+| GET    | `/api/categories/` | Liste |
+| POST   | `/api/categories/` | Création |
+| GET    | `/api/categories/{id}/` | Détails |
+| PUT    | `/api/categories/{id}/` | Mise à jour |
+| DELETE | `/api/categories/{id}/` | Suppression |
+
+### Transactions
+
+| Méthode | Endpoint | Description |
+|---------|----------|-------------|
+| GET    | `/api/transactions/` | Liste (filtres : date, type, catégorie, compte) |
+| POST   | `/api/transactions/` | Création |
+| GET    | `/api/transactions/{id}/` | Détails |
+| PUT    | `/api/transactions/{id}/` | Mise à jour |
+| DELETE | `/api/transactions/{id}/` | Suppression |
+| POST   | `/api/transactions/bulk-sync/` | Synchronisation en batch (offline → cloud) |
+
+### Budgets
+
+| Méthode | Endpoint | Description |
+|---------|----------|-------------|
+| GET    | `/api/budgets/` | Liste des budgets actifs |
+| POST   | `/api/budgets/` | Création |
+| GET    | `/api/budgets/{id}/` | Détails |
+| PUT    | `/api/budgets/{id}/` | Mise à jour |
+| DELETE | `/api/budgets/{id}/` | Suppression |
+
+### Statistiques
+
+| Méthode | Endpoint | Description |
+|---------|----------|-------------|
+| GET | `/api/statistics/summary/` | Résumé dépenses/revenus (params : `start_date`, `end_date`) |
+| GET | `/api/statistics/by-category/` | Répartition des dépenses par catégorie |
+| GET | `/api/statistics/trends/` | Évolution sur plusieurs périodes |
+
+### Export
+
+| Méthode | Endpoint | Description |
+|---------|----------|-------------|
+| GET | `/api/export/csv/` | Export des transactions en CSV |
+| GET | `/api/export/json/` | Export complet des données en JSON |
+
+---
+
+## Authentification JWT
+
+- **Login** : `POST /api/auth/login/` avec `email` + `password` (ou `phone` selon implémentation). Réponse : `access` + `refresh` tokens.
+- **Requêtes authentifiées** : header `Authorization: Bearer <access_token>`.
+- **Expiration** : access token court (ex. 15–30 min), refresh token plus long (ex. 7 jours).
+- **Refresh** : `POST /api/auth/refresh/` avec `{"refresh": "<refresh_token>"}` pour obtenir un nouveau `access`.
+
+---
+
+## Synchronisation offline-first
+
+1. L’app mobile envoie les changements non synchronisés via **POST /api/transactions/bulk-sync/** (et endpoints dédiés pour comptes, catégories, budgets si besoin).
+2. Le serveur valide, enregistre et renvoie les IDs serveur.
+3. Connexion depuis un nouvel appareil : l’app fait un **pull** initial (GET accounts, categories, transactions, budgets) puis continue en sync bidirectionnelle selon la stratégie retenue (MVP : last write wins).
+
+---
+
+## Sécurité
+
+- **HTTPS** obligatoire en production.
+- **Mots de passe** : hachage via Django (PBKDF2) ou Argon2/bcrypt.
+- **CSRF** : protection Django activée pour les sessions.
+- **CORS** : `CORS_ALLOWED_ORIGINS` configuré pour l’app mobile / web autorisée.
+- **Rate limiting** : recommandé sur `login`, `register`, `password-reset` (ex. `django-ratelimit`).
+- **Validation** : sérialiseurs DRF pour toutes les entrées ; pas d’exposition directe de requêtes SQL brutes.
+
+---
+
+## Commandes utiles
+
+```bash
+# Migrations
+python manage.py makemigrations
+python manage.py migrate
+
+# Superutilisateur (admin Django)
+python manage.py createsuperuser
+
+# Shell Django
+python manage.py shell
+
+# Tests
+python manage.py test
+```
+
+---
+
+## Docker (optionnel)
+
+Exemple de démarrage avec Docker Compose (à adapter selon les fichiers présents) :
+
+```bash
+docker compose up -d
+```
+
+Prévoir un `Dockerfile` pour l’app Django et un `docker-compose.yml` avec services `db` (PostgreSQL) et `web` (Django). Les variables d’environnement peuvent être passées via `.env` ou `environment` dans `docker-compose.yml`.
+
+---
+
+## Ressources
+
+- [Django](https://www.djangoproject.com/)
+- [Django REST Framework](https://www.django-rest-framework.org/)
+- [djangorestframework-simplejwt](https://github.com/jazzband/djangorestframework-simplejwt)
+- [PostgreSQL](https://www.postgresql.org/)
+
+---
+
+*Backend FineTrack — Documentation alignée sur le cahier des charges (MVP).*
