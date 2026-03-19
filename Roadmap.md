@@ -47,13 +47,13 @@ Ce Roadmap planifie donc l’API qui permettra à l’app (Hive ou SQLite côté
 
 ### Tâches
 
-- [ ] Créer le projet Django (`django-admin startproject config .`)
-- [ ] Configurer `config/settings.py` (env vars, PostgreSQL via `DATABASE_URL`, CORS, REST_FRAMEWORK)
-- [ ] Rédiger `requirements.txt` (Django 5.x, djangorestframework, djangorestframework-simplejwt, psycopg2-binary, python-dotenv, django-cors-headers, gunicorn)
-- [ ] Créer `.env.example` et documenter les variables (SECRET_KEY, DEBUG, ALLOWED_HOSTS, DATABASE_URL, CORS_ALLOWED_ORIGINS)
-- [ ] Créer la structure `apps/` et enregistrer les apps dans `INSTALLED_APPS`
+- [x] Créer le projet Django (`django-admin startproject config .`)
+- [x] Configurer `config/settings.py` (env vars, PostgreSQL via `DATABASE_URL`, CORS, REST_FRAMEWORK)
+- [x] Rédiger `requirements.txt` (Django 5.x, djangorestframework, djangorestframework-simplejwt, psycopg2-binary, python-dotenv, django-cors-headers, gunicorn)
+- [x] Créer `.env.example` et documenter les variables (SECRET_KEY, DEBUG, ALLOWED_HOSTS, DATABASE_URL, CORS_ALLOWED_ORIGINS)
+- [x] Créer la structure `apps/` et enregistrer les apps dans `INSTALLED_APPS`
 - [ ] (Optionnel) Docker Compose : service `db` (PostgreSQL), service `web` (Django), `.env` pour la DB
-- [ ] Vérifier `python manage.py migrate` et `runserver`
+- [x] Vérifier `python manage.py migrate` et `runserver`
 
 ### Livrables
 

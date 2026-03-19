@@ -56,17 +56,31 @@ CORS_ALLOWED_ORIGINS=http://localhost:*
 
 ### 4. Base de données
 
+**Toujours activer le venv avant d’exécuter `manage.py` :**
+
 ```bash
+source venv/bin/activate   # Linux/macOS (depuis backend/)
 python manage.py migrate
 ```
 
 ### 5. Lancer le serveur
 
 ```bash
+source venv/bin/activate
 python manage.py runserver
 ```
 
 L’API est disponible sur **http://127.0.0.1:8000/** (ou le port configuré).
+
+### Documentation API (Swagger / OpenAPI 3)
+
+| URL | Description |
+|-----|--------------|
+| **http://127.0.0.1:8000/api/docs/** | Swagger UI — tester les endpoints et s’authentifier avec un JWT |
+| **http://127.0.0.1:8000/api/redoc/** | ReDoc — lecture de la doc |
+| **http://127.0.0.1:8000/api/schema/** | Schéma OpenAPI 3 (JSON) |
+
+Dans Swagger UI : cliquer sur **Authorize**, puis renseigner le token JWT (champ **access** retourné par `POST /api/auth/login/`) au format `Bearer <access_token>` ou simplement coller l’access token.
 
 ---
 
@@ -137,11 +151,13 @@ Base URL : `/api/`
 |---------|----------|-------------|
 | POST | `/api/auth/register/` | Création de compte |
 | POST | `/api/auth/login/` | Connexion (retourne JWT) |
-| POST | `/api/auth/logout/` | Déconnexion |
 | POST | `/api/auth/refresh/` | Rafraîchissement du token JWT |
-| POST | `/api/auth/password-reset/` | Demande de réinitialisation mot de passe |
 | GET  | `/api/auth/profile/` | Récupération du profil |
 | PUT  | `/api/auth/profile/` | Mise à jour du profil |
+| POST | `/api/auth/password-reset/` | **Mot de passe oublié** — envoi d’un OTP par email |
+| POST | `/api/auth/password-reset/verify/` | **Vérifier** un code OTP (valide / expiré) |
+| POST | `/api/auth/password-reset/confirm/` | **Confirmer** avec OTP + nouveau mot de passe |
+| POST | `/api/auth/password/change/` | **Changer le mot de passe** (JWT requis) |
 
 ### Comptes (Accounts)
 
@@ -209,6 +225,12 @@ Base URL : `/api/`
 - **Expiration** : access token court (ex. 15–30 min), refresh token plus long (ex. 7 jours).
 - **Refresh** : `POST /api/auth/refresh/` avec `{"refresh": "<refresh_token>"}` pour obtenir un nouveau `access`.
 
+### Mot de passe oublié (OTP) et changement de mot de passe
+
+- **Mot de passe oublié** : `POST /api/auth/password-reset/` avec `{"email": "..."}` → un code OTP (6 chiffres) est envoyé par email (valide 15 min). Optionnel : `POST /api/auth/password-reset/verify/` avec `{"email": "...", "otp": "123456"}` pour vérifier le code avant d’afficher l’écran « Nouveau mot de passe ». Puis `POST /api/auth/password-reset/confirm/` avec `{"email": "...", "otp": "123456", "new_password": "...", "new_password_confirm": "..."}` pour définir le nouveau mot de passe.
+- **Changer le mot de passe** (utilisateur connecté) : `POST /api/auth/password/change/` avec `{"old_password": "...", "new_password": "...", "new_password_confirm": "..."}` (JWT requis).
+- En dev, avec `EMAIL_BACKEND=console`, l’OTP est affiché dans la console du serveur Django.
+
 ---
 
 ## Synchronisation offline-first
@@ -232,7 +254,11 @@ Base URL : `/api/`
 
 ## Commandes utiles
 
+Activer le venv avant toute commande `manage.py` : `source venv/bin/activate` (Linux/macOS).
+
 ```bash
+source venv/bin/activate
+
 # Migrations
 python manage.py makemigrations
 python manage.py migrate
