@@ -1,6 +1,7 @@
 import re
 from django.contrib.auth import get_user_model
 from django.contrib.auth.password_validation import validate_password
+from django.db import IntegrityError
 from rest_framework import serializers
 from rest_framework.exceptions import AuthenticationFailed
 from rest_framework_simplejwt.tokens import RefreshToken
@@ -33,29 +34,50 @@ class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
         if not user.check_password(password):
             raise AuthenticationFailed("Aucun compte actif n'a été trouvé avec les identifiants fournis")
 
+        # Ajout du claim `user_type` (particulier vs PME/professionnel)
+        user_type = UserProfile.USER_TYPE_INDIVIDUAL
+        if hasattr(user, "profile"):
+            user_type = user.profile.user_type
+
         refresh = RefreshToken.for_user(user)
+        refresh["user_type"] = user_type
+
+        access = refresh.access_token
+        access["user_type"] = user_type
+
         return {
             "refresh": str(refresh),
-            "access": str(refresh.access_token),
+            "access": str(access),
         }
 
     @classmethod
     def get_token(cls, user):
         token = super().get_token(user)
         token["email"] = user.email
+        if hasattr(user, "profile"):
+            token["user_type"] = user.profile.user_type
+        else:
+            token["user_type"] = UserProfile.USER_TYPE_INDIVIDUAL
         return token
 
 
 class RegisterSerializer(serializers.ModelSerializer):
-    """Inscription : email + mot de passe (8 car. min, lettres + chiffres)."""
+    """Inscription : email + mot de passe (+ type de compte optionnel)."""
 
     email = serializers.EmailField(required=True, write_only=True)
     password = serializers.CharField(required=True, write_only=True, min_length=8, style={"input_type": "password"})
     password_confirm = serializers.CharField(required=True, write_only=True, style={"input_type": "password"})
+    user_type = serializers.ChoiceField(
+        choices=UserProfile.USER_TYPE_CHOICES,
+        default=UserProfile.USER_TYPE_INDIVIDUAL,
+        required=False,
+        write_only=True,
+        help_text="individual (particulier) ou professional (professionnel). Par défaut : individual.",
+    )
 
     class Meta:
         model = User
-        fields = ("email", "password", "password_confirm")
+        fields = ("email", "password", "password_confirm", "user_type")
 
     def validate_email(self, value):
         if User.objects.filter(email__iexact=value).exists():
@@ -75,20 +97,43 @@ class RegisterSerializer(serializers.ModelSerializer):
 
     def create(self, validated_data):
         validated_data.pop("password_confirm")
+        user_type = validated_data.pop("user_type", UserProfile.USER_TYPE_INDIVIDUAL)
         password = validated_data.pop("password")
-        # Django User requires username; we use email as username
-        user = User.objects.create_user(
-            username=validated_data["email"],
-            email=validated_data["email"],
-            password=password,
-        )
+        try:
+            user = User.objects.create_user(
+                username=validated_data["email"],
+                email=validated_data["email"],
+                password=password,
+            )
+        except IntegrityError:
+            raise serializers.ValidationError(
+                {"email": "Un compte existe déjà avec cet email."}
+            )
+        if hasattr(user, "profile"):
+            user.profile.user_type = user_type
+            user.profile.save(update_fields=["user_type"])
         return user
 
 
 class UserProfileSerializer(serializers.ModelSerializer):
+    user_type_display = serializers.CharField(source="get_user_type_display", read_only=True)
+    merchant_id = serializers.SerializerMethodField()
+
     class Meta:
         model = UserProfile
-        fields = ("phone_number", "country", "default_currency", "language")
+        fields = (
+            "user_type",
+            "user_type_display",
+            "merchant_id",
+            "merchant_display_name",
+            "phone_number",
+            "country",
+            "default_currency",
+            "language",
+        )
+
+    def get_merchant_id(self, obj):
+        return str(obj.merchant_id) if obj.merchant_id else None
 
 
 class ProfileSerializer(serializers.ModelSerializer):
@@ -100,6 +145,29 @@ class ProfileSerializer(serializers.ModelSerializer):
         model = User
         fields = ("id", "email", "first_name", "last_name", "profile")
         read_only_fields = ("id", "email")
+
+    def validate(self, attrs):
+        """
+        Évite les mises à jour accidentelles avec les données d'un autre utilisateur.
+        Si `id` ou `email` sont fournis dans le payload, ils doivent correspondre
+        exactement à l'utilisateur authentifié ciblé par /api/auth/profile/.
+        """
+        if not self.instance:
+            return attrs
+
+        errors = {}
+        raw_id = self.initial_data.get("id", None)
+        if raw_id is not None and str(raw_id) != str(self.instance.id):
+            errors["id"] = "L'id fourni ne correspond pas à l'utilisateur connecté."
+
+        raw_email = self.initial_data.get("email", None)
+        if raw_email is not None and str(raw_email).strip().lower() != self.instance.email.lower():
+            errors["email"] = "L'email fourni ne correspond pas à l'utilisateur connecté."
+
+        if errors:
+            raise serializers.ValidationError(errors)
+
+        return attrs
 
     def update(self, instance, validated_data):
         profile_data = validated_data.pop("profile", None)

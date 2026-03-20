@@ -1,0 +1,21 @@
+from rest_framework import serializers
+
+from .models import Category
+
+
+class CategorySerializer(serializers.ModelSerializer):
+    """CRUD Catégories (dépenses / revenus)."""
+
+    class Meta:
+        model = Category
+        fields = (
+            "id",
+            "name",
+            "category_type",
+            "color",
+            "icon",
+            "is_default",
+            "created_at",
+            "updated_at",
+        )
+        read_only_fields = ("id", "created_at", "updated_at")

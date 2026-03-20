@@ -64,6 +64,11 @@ class ProfileView(generics.RetrieveUpdateAPIView):
     def get_object(self):
         return self.request.user
 
+    def get(self, request, *args, **kwargs):
+        if hasattr(request.user, "profile") and request.user.profile.user_type == UserProfile.USER_TYPE_PROFESSIONAL:
+            request.user.profile.ensure_merchant_id()
+        return super().get(request, *args, **kwargs)
+
 
 # --- Password reset (forget password) & change password ---
 

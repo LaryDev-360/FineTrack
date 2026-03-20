@@ -2,6 +2,14 @@
 
 API REST du projet **FineTrack** : backend Django 5.x + Django REST Framework (DRF), base PostgreSQL, authentification JWT. Conçu pour une application mobile **offline-first** avec synchronisation optionnelle.
 
+Le cahier des charges prévoit **deux modes d’usage** :
+- **Particulier** : suivi des dépenses/revenus, budgets, statistiques.
+- **PME/Professionnel** : suivi des ventes, comptabilité simplifiée, génération de bilans et **score financier** (en phases post-MVP).
+
+Le champ `user_type` dans `UserProfile` permet à l’app d’adapter l’interface et les écrans.
+
+Les fonctionnalités spécifiques au mode **Professionnel/PME** (paiement QR, bilans financiers, scoring) sont prévues en phases post-MVP selon le cahier des charges.
+
 ---
 
 ## Stack
@@ -105,7 +113,8 @@ backend/
 │   ├── transactions/    # Transactions, bulk-sync
 │   ├── budgets/         # Budgets
 │   ├── statistics/      # Résumés, par catégorie, tendances
-│   └── export/          # Export CSV / JSON
+│   ├── export/          # Export CSV / JSON
+│   └── payments/        # Paiements QR (intents, confirmation)
 └── tests/
 ```
 
@@ -118,7 +127,7 @@ backend/
 ### User & UserProfile
 
 - **User** : modèle Django (email/password ou téléphone selon implémentation).
-- **UserProfile** : `phone_number`, `country`, `default_currency` (ex. `XOF`), `language` (`fr`/`en`), `created_at`, `updated_at`.
+- **UserProfile** : `user_type` (`individual` = Particulier, `professional` = PME/Professionnel), `phone_number`, `country`, `default_currency` (ex. `XOF`), `language` (`fr`/`en`), `created_at`, `updated_at`.
 
 ### Account (comptes / portefeuilles)
 
@@ -158,6 +167,10 @@ Base URL : `/api/`
 | POST | `/api/auth/password-reset/verify/` | **Vérifier** un code OTP (valide / expiré) |
 | POST | `/api/auth/password-reset/confirm/` | **Confirmer** avec OTP + nouveau mot de passe |
 | POST | `/api/auth/password/change/` | **Changer le mot de passe** (JWT requis) |
+
+À noter :
+- `POST /api/auth/register/` accepte aussi un champ optionnel `user_type` : `individual` ou `professional`.
+- Le token JWT renvoyé au login inclut `user_type` en plus de l’email.
 
 ### Comptes (Accounts)
 
@@ -215,6 +228,17 @@ Base URL : `/api/`
 |---------|----------|-------------|
 | GET | `/api/export/csv/` | Export des transactions en CSV |
 | GET | `/api/export/json/` | Export complet des données en JSON |
+
+### Paiements QR (comptes professionnels)
+
+| Méthode | Endpoint | Description |
+|---------|----------|-------------|
+| GET  | `/api/merchant/me/` | Profil marchand : `merchant_id`, `payload_for_qr_static` (QR statique) |
+| POST | `/api/payments/intents/` | Créer un intent (montant, compte à créditer) → payload pour QR dynamique |
+| GET  | `/api/payments/intents/<uuid>/` | Détail d’un intent (client qui a scanné) |
+| POST | `/api/payments/confirm/` | Confirmer le paiement (payer_account_id + payment_intent_id) |
+
+**Flux** : (1) Marchand professionnel appelle `GET /api/merchant/me/` pour obtenir son `merchant_id` (QR statique) ou `POST /api/payments/intents/` pour un QR dynamique (montant + compte). (2) Client scanne le QR (payload `finetrack://pay/d/<uuid>`). (3) App client appelle `GET /api/payments/intents/<uuid>/` pour afficher montant et marchand. (4) Client confirme avec `POST /api/payments/confirm/` → débit du compte du client, crédit du compte du marchand, création des transactions.
 
 ---
 

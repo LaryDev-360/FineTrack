@@ -21,6 +21,18 @@ Plan d’implémentation du backend API (Django + DRF + PostgreSQL) pour FineTra
 
 ---
 
+## Alignement avec le cahier des charges
+
+Le document fourni décompose aussi les fonctionnalités en grandes phases :
+- **Phase 1 (MVP)** : gestion des comptes, transactions, statistiques.
+- **Phase 2** : **paiement via QR code** + enregistrement automatique des transactions.
+- **Phase 3** : **bilans financiers** + **score de crédit**.
+- **Phase 4** : intégration **mobile money** via API + partenariats.
+
+Notre roadmap technique (0 à 7) inclut ces éléments, mais ajoute aussi les aspects “système” indispensables : auth JWT, offline-first, synchronisation, sécurité, tests et déploiement.
+
+---
+
 ## Offline-first : rôle du backend
 
 L’architecture **offline-first** repose sur deux briques :

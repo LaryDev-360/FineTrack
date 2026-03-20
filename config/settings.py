@@ -38,6 +38,7 @@ INSTALLED_APPS = [
     "apps.budgets",
     "apps.statistics",
     "apps.export",
+    "apps.payments",
 ]
 
 MIDDLEWARE = [
@@ -154,6 +155,6 @@ DEFAULT_FROM_EMAIL = os.environ.get("DEFAULT_FROM_EMAIL", "FineTrack <noreply@fi
 # Simple JWT (customize in Phase 1 if needed)
 from datetime import timedelta
 SIMPLE_JWT = {
-    "ACCESS_TOKEN_LIFETIME": timedelta(minutes=30),
+    "ACCESS_TOKEN_LIFETIME": timedelta(hours=8),
     "REFRESH_TOKEN_LIFETIME": timedelta(days=7),
 }
