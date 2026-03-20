@@ -7,6 +7,7 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from apps.accounts.models import UserProfile
+from apps.categories.models import Category
 from apps.core.models import Account
 from apps.transactions.models import Transaction
 
@@ -22,6 +23,25 @@ from .serializers import (
 
 def is_professional(user):
     return hasattr(user, "profile") and user.profile.user_type == UserProfile.USER_TYPE_PROFESSIONAL
+
+
+def get_or_create_payment_category(user, category_type):
+    """
+    Assure qu'une catégorie existe pour les opérations de paiement QR
+    afin de toujours lier Transaction.category.
+    """
+    if category_type == "expense":
+        name = "Paiements QR"
+    else:
+        name = "Ventes QR"
+
+    category, _ = Category.objects.get_or_create(
+        user=user,
+        name=name,
+        category_type=category_type,
+        defaults={"color": "#4F46E5", "icon": "qr_code", "is_default": True},
+    )
+    return category
 
 
 class MerchantMeView(APIView):
@@ -132,12 +152,16 @@ class PaymentConfirmView(APIView):
             intent.merchant_account.current_balance += amount
             intent.merchant_account.save(update_fields=["current_balance", "updated_at"])
 
+            payer_category = get_or_create_payment_category(request.user, "expense")
+            merchant_category = get_or_create_payment_category(intent.merchant, "income")
+
             merchant_name = intent.merchant.profile.merchant_display_name or intent.merchant.email
             Transaction.objects.create(
                 user=request.user,
                 transaction_type=Transaction.TRANSACTION_TYPES[0][0],  # expense
                 amount=amount,
                 account=payer_account,
+                category=payer_category,
                 date=now,
                 note=f"Paiement QR vers {merchant_name}" + (f" — {intent.reference}" if intent.reference else ""),
             )
@@ -147,6 +171,7 @@ class PaymentConfirmView(APIView):
                 transaction_type=Transaction.TRANSACTION_TYPES[1][0],  # income
                 amount=amount,
                 account=intent.merchant_account,
+                category=merchant_category,
                 date=now,
                 note=f"Paiement QR reçu de {payer_name}" + (f" — {intent.reference}" if intent.reference else ""),
             )
@@ -184,12 +209,14 @@ class MerchantRecordSaleView(APIView):
         with transaction.atomic():
             credited_account.current_balance += amount
             credited_account.save(update_fields=["current_balance", "updated_at"])
+            income_category = get_or_create_payment_category(request.user, "income")
 
             Transaction.objects.create(
                 user=request.user,
                 transaction_type=Transaction.TRANSACTION_TYPES[1][0],  # income
                 amount=amount,
                 account=credited_account,
+                category=income_category,
                 date=now,
                 note=f"Vente ({payment_method})" + (f" — {reference}" if reference else ""),
             )
