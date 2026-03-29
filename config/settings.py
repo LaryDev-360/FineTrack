@@ -46,6 +46,7 @@ INSTALLED_APPS = [
     "apps.transactions",
     "apps.budgets",
     "apps.statistics",
+    "apps.accounting",
     "apps.export",
     "apps.payments",
 ]
@@ -129,6 +130,13 @@ REST_FRAMEWORK = {
     "DEFAULT_PAGINATION_CLASS": "rest_framework.pagination.PageNumberPagination",
     "PAGE_SIZE": 50,
     "DEFAULT_SCHEMA_CLASS": "drf_spectacular.openapi.AutoSchema",
+    # Limites par scope (voir config.throttles — appliquées sur les vues auth publiques)
+    "DEFAULT_THROTTLE_RATES": {
+        "register": "20/hour",
+        "login": "30/minute",
+        "password_reset": "10/hour",
+        "refresh": "120/minute",
+    },
 }
 
 # drf-spectacular (OpenAPI 3 / Swagger)

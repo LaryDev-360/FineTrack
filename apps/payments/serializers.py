@@ -199,6 +199,23 @@ class PaymentMerchantRecordSaleSerializer(serializers.Serializer):
         raise serializers.ValidationError("payment_method invalide.")
 
 
+class MerchantMeResponseSerializer(serializers.Serializer):
+    """Réponse GET /api/merchant/me/."""
+
+    merchant_id = serializers.CharField()
+    merchant_display_name = serializers.CharField()
+    payload_for_qr_static = serializers.CharField()
+
+
+class PaymentConfirmResponseSerializer(serializers.Serializer):
+    """Réponse POST /api/payments/confirm/."""
+
+    detail = serializers.CharField()
+    payment_intent_id = serializers.UUIDField()
+    amount = serializers.CharField()
+    merchant_display_name = serializers.CharField()
+
+
 class PaymentMerchantRecordSaleResponseSerializer(serializers.Serializer):
     detail = serializers.CharField()
     credited_account_id = serializers.IntegerField()

@@ -4,6 +4,20 @@ from rest_framework import serializers
 from apps.accounts.models import UserProfile
 from .models import Account, MobileMoneyWallet
 
+# Champs autorisés dans le payload bulk-sync (hors meta client_id / local_id / client_updated_at / id)
+ACCOUNT_BULK_PAYLOAD_FIELDS = frozenset(
+    {
+        "name",
+        "account_type",
+        "initial_balance",
+        "current_balance",
+        "currency",
+        "color",
+        "icon",
+        "is_active",
+    }
+)
+
 
 class AccountSerializer(serializers.ModelSerializer):
     """CRUD Comptes (portefeuilles)."""
@@ -24,6 +38,12 @@ class AccountSerializer(serializers.ModelSerializer):
             "updated_at",
         )
         read_only_fields = ("id", "created_at", "updated_at")
+        extra_kwargs = {
+            "name": {"max_length": 100},
+            "color": {"max_length": 7},
+            "icon": {"max_length": 50},
+            "currency": {"max_length": 3},
+        }
 
     def create(self, validated_data):
         # À la création, current_balance = initial_balance
@@ -138,3 +158,30 @@ class MobileMoneyWalletCreateSerializer(serializers.Serializer):
             account=account,
         )
         return wallet
+
+
+class AccountBulkSyncRequestSerializer(serializers.Serializer):
+    accounts = serializers.ListField(child=serializers.DictField(), min_length=1, max_length=200)
+
+
+class AccountBulkSyncResultItemSerializer(serializers.Serializer):
+    index = serializers.IntegerField()
+    status = serializers.ChoiceField(choices=["created", "updated", "error", "conflict"])
+    id = serializers.IntegerField(required=False, allow_null=True)
+    client_id = serializers.CharField(required=False, allow_blank=True)
+    local_id = serializers.CharField(required=False, allow_blank=True)
+    errors = serializers.DictField(required=False)
+    account = AccountSerializer(required=False)
+    server_account = AccountSerializer(required=False)
+
+
+class AccountBulkSyncSummarySerializer(serializers.Serializer):
+    created = serializers.IntegerField()
+    updated = serializers.IntegerField()
+    error = serializers.IntegerField()
+    conflict = serializers.IntegerField()
+
+
+class AccountBulkSyncResponseSerializer(serializers.Serializer):
+    results = AccountBulkSyncResultItemSerializer(many=True)
+    summary = AccountBulkSyncSummarySerializer()

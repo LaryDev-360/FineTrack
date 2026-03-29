@@ -13,6 +13,8 @@ from apps.transactions.models import Transaction
 
 from .models import PaymentIntent
 from .serializers import (
+    MerchantMeResponseSerializer,
+    PaymentConfirmResponseSerializer,
     PaymentConfirmSerializer,
     PaymentIntentCreateSerializer,
     PaymentIntentDetailSerializer,
@@ -49,7 +51,11 @@ class MerchantMeView(APIView):
 
     permission_classes = (IsAuthenticated,)
 
-    @extend_schema(tags=["Paiements QR"], summary="Profil marchand (QR statique)")
+    @extend_schema(
+        tags=["Paiements QR"],
+        summary="Profil marchand (QR statique)",
+        responses={200: MerchantMeResponseSerializer},
+    )
     def get(self, request):
         if not is_professional(request.user):
             return Response(
@@ -105,7 +111,11 @@ class PaymentIntentDetailView(APIView):
 
     permission_classes = (IsAuthenticated,)
 
-    @extend_schema(tags=["Paiements QR"], summary="Détail intent (après scan)")
+    @extend_schema(
+        tags=["Paiements QR"],
+        summary="Détail intent (après scan)",
+        responses={200: PaymentIntentDetailSerializer},
+    )
     def get(self, request, intent_id):
         try:
             intent = PaymentIntent.objects.get(id=intent_id)
@@ -132,7 +142,7 @@ class PaymentConfirmView(APIView):
         tags=["Paiements QR"],
         summary="Confirmer le paiement",
         request=PaymentConfirmSerializer,
-        responses={200: None},
+        responses={200: PaymentConfirmResponseSerializer},
     )
     def post(self, request):
         serializer = PaymentConfirmSerializer(data=request.data, context={"request": request})

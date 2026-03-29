@@ -5,6 +5,13 @@ from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView
 
+from config.throttles import (
+    LoginThrottle,
+    PasswordResetThrottle,
+    RegisterThrottle,
+    TokenRefreshThrottle,
+)
+
 from .models import UserProfile
 from .serializers import (
     CustomTokenObtainPairSerializer,
@@ -47,12 +54,14 @@ class LoginView(TokenObtainPairView):
     """POST /api/auth/login/ — Connexion (email + password) → access + refresh tokens."""
     serializer_class = CustomTokenObtainPairSerializer
     permission_classes = (AllowAny,)
+    throttle_classes = (LoginThrottle,)
 
 
 @extend_schema(tags=["Auth"], summary="Rafraîchir le token")
 class RefreshView(TokenRefreshView):
     """POST /api/auth/refresh/ — Rafraîchir l'access token avec le refresh token."""
     permission_classes = (AllowAny,)
+    throttle_classes = (TokenRefreshThrottle,)
 
 
 @extend_schema(tags=["Auth"], summary="Profil utilisateur (GET/PUT)")
@@ -83,6 +92,7 @@ class PasswordResetRequestView(generics.GenericAPIView):
     """POST /api/auth/password-reset/ — Demande de réinitialisation (envoi OTP par email)."""
     serializer_class = PasswordResetRequestSerializer
     permission_classes = (AllowAny,)
+    throttle_classes = (PasswordResetThrottle,)
 
     def post(self, request):
         serializer = self.get_serializer(data=request.data)
@@ -108,6 +118,7 @@ class VerifyOTPView(generics.GenericAPIView):
     """POST /api/auth/password-reset/verify/ — Vérifier un code OTP."""
     serializer_class = VerifyOTPSerializer
     permission_classes = (AllowAny,)
+    throttle_classes = (PasswordResetThrottle,)
 
     def post(self, request):
         serializer = self.get_serializer(data=request.data)
@@ -125,6 +136,7 @@ class PasswordResetConfirmView(generics.GenericAPIView):
     """POST /api/auth/password-reset/confirm/ — Confirmer avec OTP + nouveau mot de passe."""
     serializer_class = PasswordResetConfirmSerializer
     permission_classes = (AllowAny,)
+    throttle_classes = (PasswordResetThrottle,)
 
     def post(self, request):
         serializer = self.get_serializer(data=request.data)

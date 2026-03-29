@@ -205,26 +205,42 @@ Ce Roadmap planifie donc l’API qui permettra à l’app (Hive ou SQLite côté
 
 ### Tâches
 
-- [ ] **Bulk-sync**
-  - [ ] Gérer les créations et mises à jour dans un même batch (id client → id serveur dans la réponse)
-  - [ ] Gestion d’erreurs partielles (quelles entrées ont échoué, retour explicite)
-  - [ ] Optionnel : endpoint « pull » initial (GET toutes les données user) pour nouveau device
-- [ ] **Sécurité**
-  - [ ] Rate limiting sur login, register, password-reset (ex. django-ratelimit ou middleware)
-  - [ ] Validation des entrées (montants, dates, longueurs) dans tous les sérialiseurs
-  - [ ] Vérification systématique que la ressource appartient au user (permissions / queryset filtré)
-- [ ] **Documentation**
-  - [ ] Schéma OpenAPI/Swagger (drf-spectacular ou drf-yasg) et exposition sous `/api/schema/` ou `/api/docs/`
-  - [ ] Mise à jour du README backend si besoin (exemples de requêtes, variables d’env)
-- [ ] **Config production**
-  - [ ] ALLOWED_HOSTS, DEBUG=False, SECRET_KEY via env
-  - [ ] Fichier `docker-compose.prod.yml` ou notes de déploiement (gunicorn, static files, reverse proxy)
+- [x] **Bulk-sync**
+  - [x] Gérer les créations et mises à jour dans un même batch (id client → id serveur dans la réponse)
+  - [x] Gestion d’erreurs partielles (quelles entrées ont échoué, retour explicite)
+  - [x] Optionnel : endpoint « pull » initial — `GET /api/sync/initial/`
+  - [x] Bulk-sync également pour **comptes**, **catégories**, **budgets** ; champ **`summary`** sur toutes les réponses bulk
+- [x] **Sécurité**
+  - [x] Rate limiting sur login, register, password-reset, refresh (DRF, `config/throttles.py`)
+  - [x] Validation renforcée (longueurs, montants, etc. sur les sérialiseurs principaux)
+  - [x] Ressources scoped par utilisateur (querysets / permissions) — vérifié
+- [x] **Documentation**
+  - [x] Schéma OpenAPI / Swagger sous `/api/schema/`, `/api/docs/` (schémas Paiements QR complétés)
+  - [x] README backend mis à jour (sync, throttling, prod)
+- [x] **Config production**
+  - [x] ALLOWED_HOSTS, DEBUG=False, SECRET_KEY via env (`settings.py`, `.env.example`)
+  - [x] `docker-compose.prod.yml` (PostgreSQL) + notes Gunicorn / reverse proxy dans le README
 
 ### Livrables
 
 - Bulk-sync fiable pour l’app mobile
 - Rate limiting et validation en place
 - Documentation API (Swagger/OpenAPI) disponible
+
+---
+
+## Cahier des charges PDF — comptabilité & bilans (§6–7)
+
+Fonctionnalités implémentées côté API (`apps/accounting`) :
+
+- [x] Suivi des flux, calculs par jour / semaine / mois / année (`GET /api/accounting/period/`)
+- [x] Série de bilans sur une plage + export CSV (`GET /api/accounting/bilans/`, `GET /api/accounting/export/csv/`)
+- [x] Indicateurs clés §6.3 (`GET /api/accounting/kpis/`)
+
+Non couvert ici (autre périmètre / phase) :
+
+- [ ] **Score financier** (§8 du PDF) — endpoint dédié à prévoir
+- [ ] Export PDF des bilans (hors CSV)
 
 ---
 

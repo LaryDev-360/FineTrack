@@ -1,0 +1,30 @@
+# FineTrack — PostgreSQL pour environnement type production / staging.
+# L’application web (Gunicorn + Django) peut tourner sur le même hôte, sur un autre
+# service, ou sur un PaaS : définir DATABASE_URL vers ce conteneur.
+#
+# Exemple :
+#   DATABASE_URL=postgres://finetrack:VOTRE_MDP@127.0.0.1:5432/finetrack
+#
+# Démarrage :
+#   docker compose -f docker-compose.prod.yml up -d
+
+services:
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-finetrack}
+      POSTGRES_USER: ${POSTGRES_USER:-finetrack}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?définir POSTGRES_PASSWORD dans .env}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-finetrack} -d ${POSTGRES_DB:-finetrack}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  pgdata:

@@ -113,12 +113,35 @@ backend/
 │   ├── transactions/    # Transactions, bulk-sync
 │   ├── budgets/         # Budgets
 │   ├── statistics/      # Résumés, par catégorie, tendances
+│   ├── accounting/    # Comptabilité automatisée, bilans, KPIs, export bilans
 │   ├── export/          # Export CSV / JSON
 │   └── payments/        # Paiements QR (intents, confirmation)
 └── tests/
 ```
 
 *(La structure réelle pourra être ajustée selon l’organisation des apps Django.)*
+
+---
+
+## Comptabilité et bilans (cahier des charges §6–7)
+
+| Méthode | Endpoint | Description |
+|---------|----------|-------------|
+| GET | `/api/accounting/period/` | Instantané pour une période : `granularity` = `day`, `week`, `month` ou `year` ; `reference_date` optionnel |
+| GET | `/api/accounting/bilans/` | Série de bilans : `granularity` = `daily`, `weekly`, `monthly` ou `annual` ; `start_date`, `end_date` |
+| GET | `/api/accounting/kpis/` | Indicateurs (ticket moyen, croissance CA, variabilité des revenus, etc.) sur une plage |
+| GET | `/api/accounting/export/csv/` | Export CSV de la même série que `bilans/` |
+
+Les montants **chiffre d’affaires** = somme des transactions **income** ; **dépenses** = **expense** ; les **transferts** sont exclus des totaux mais comptés dans `nombre_transactions` pour les vues qui agrègent « toutes opérations hors transfert » selon l’endpoint.
+
+---
+
+## Synchronisation offline (Phase 6)
+
+- **Pull initial** : `GET /api/sync/initial/` charge tout le jeu de données utilisateur (profil, comptes, catégories, transactions, budgets, wallets).
+- **Push par lot** : `POST …/bulk-sync/` sur **comptes**, **catégories**, **budgets** et **transactions** accepte des tableaux d’objets avec `client_id` / `local_id` optionnels, `id` serveur pour les mises à jour, et `client_updated_at` (ISO 8601) pour la détection de conflits. Chaque réponse inclut `results` (statut par ligne : `created`, `updated`, `error`, `conflict`) et un **`summary`** (compteurs).
+- **Throttling** (par adresse IP sur les endpoints **sans** JWT) : limites configurables dans `config/settings.py` (`REST_FRAMEWORK["DEFAULT_THROTTLE_RATES"]`) pour `register`, `login`, `password_reset`, `refresh`. En cas de dépassement : HTTP **429** avec détails DRF.
+- **Production** : définir `DEBUG=False`, `SECRET_KEY`, `ALLOWED_HOSTS`, `DATABASE_URL` (PostgreSQL). Fichier d’exemple : `docker-compose.prod.yml` (service PostgreSQL ; l’app peut tourner sur l’hôte ou un PaaS avec Gunicorn derrière un reverse proxy HTTPS).
 
 ---
 
@@ -182,6 +205,7 @@ Base URL : `/api/`
 | PUT    | `/api/accounts/{id}/` | Mise à jour |
 | DELETE | `/api/accounts/{id}/` | Suppression |
 | POST   | `/api/accounts/transfer/` | Transfert entre deux comptes |
+| POST   | `/api/accounts/bulk-sync/` | Synchronisation groupée des comptes (offline → cloud) |
 
 ### Catégories (Categories)
 
@@ -192,6 +216,7 @@ Base URL : `/api/`
 | GET    | `/api/categories/{id}/` | Détails |
 | PUT    | `/api/categories/{id}/` | Mise à jour |
 | DELETE | `/api/categories/{id}/` | Suppression |
+| POST   | `/api/categories/bulk-sync/` | Synchronisation groupée des catégories |
 
 ### Transactions
 
@@ -202,7 +227,7 @@ Base URL : `/api/`
 | GET    | `/api/transactions/{id}/` | Détails |
 | PUT    | `/api/transactions/{id}/` | Mise à jour |
 | DELETE | `/api/transactions/{id}/` | Suppression |
-| POST   | `/api/transactions/bulk-sync/` | Synchronisation en batch (offline → cloud) |
+| POST   | `/api/transactions/bulk-sync/` | Synchronisation en batch (offline → cloud) ; réponse avec `summary` |
 
 ### Budgets
 
@@ -213,6 +238,7 @@ Base URL : `/api/`
 | GET    | `/api/budgets/{id}/` | Détails |
 | PUT    | `/api/budgets/{id}/` | Mise à jour |
 | DELETE | `/api/budgets/{id}/` | Suppression |
+| POST   | `/api/budgets/bulk-sync/` | Synchronisation groupée des budgets |
 
 ### Statistiques
 

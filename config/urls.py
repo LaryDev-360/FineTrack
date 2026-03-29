@@ -19,6 +19,8 @@ from django.http import JsonResponse
 from django.urls import include, path
 from drf_spectacular.views import SpectacularAPIView, SpectacularRedocView, SpectacularSwaggerView
 
+from apps.core.sync_views import InitialSyncView
+
 
 def api_root(request):
     return JsonResponse({"message": "FineTrack API", "version": "0.1.0"})
@@ -33,11 +35,13 @@ urlpatterns = [
     path("api/redoc/", SpectacularRedocView.as_view(url_name="schema"), name="redoc"),
     # API
     path("api/auth/", include("apps.accounts.urls")),
+    path("api/sync/initial/", InitialSyncView.as_view(), name="sync-initial"),
     path("api/accounts/", include("apps.core.urls")),
     path("api/categories/", include("apps.categories.urls")),
     path("api/transactions/", include("apps.transactions.urls")),
     path("api/budgets/", include("apps.budgets.urls")),
     path("api/statistics/", include("apps.statistics.urls")),
+    path("api/accounting/", include("apps.accounting.urls")),
     path("api/export/", include("apps.export.urls")),
     path("api/", include("apps.payments.urls")),
 ]
