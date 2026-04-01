@@ -49,9 +49,13 @@ class RegisterView(generics.CreateAPIView):
         )
 
 
-@extend_schema(tags=["Auth"], summary="Connexion (JWT)")
+@extend_schema(
+    tags=["Auth"],
+    summary="Connexion (JWT)",
+    description="Accepte `email` + `password`, ou `phone_number` + `password` (ou `identifier` + `password`).",
+)
 class LoginView(TokenObtainPairView):
-    """POST /api/auth/login/ — Connexion (email + password) → access + refresh tokens."""
+    """POST /api/auth/login/ — Connexion (email/phone + password) → access + refresh tokens."""
     serializer_class = CustomTokenObtainPairSerializer
     permission_classes = (AllowAny,)
     throttle_classes = (LoginThrottle,)

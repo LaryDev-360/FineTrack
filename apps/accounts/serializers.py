@@ -14,19 +14,59 @@ User = get_user_model()
 
 
 class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
-    """Login par email + mot de passe ; retourne access + refresh tokens."""
+    """Login par email **ou** phone_number + mot de passe ; retourne access + refresh tokens."""
 
     username_field = User.EMAIL_FIELD  # "email"
 
+    phone_number = serializers.CharField(required=False, allow_blank=True, write_only=True)
+    identifier = serializers.CharField(required=False, allow_blank=True, write_only=True)
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        # SimpleJWT rend le champ `username_field` requis par défaut.
+        # Ici, on autorise une authentification via email OU phone_number/identifier.
+        if self.username_field in self.fields:
+            self.fields[self.username_field].required = False
+            self.fields[self.username_field].allow_blank = True
+
+    def _normalize_phone(self, value: str) -> str:
+        # MVP: normalisation simple (enlève espaces et séparateurs courants)
+        v = (value or "").strip()
+        v = re.sub(r"[\s\-\(\)]", "", v)
+        return v
+
     def validate(self, attrs):
         email = attrs.get(self.username_field) or ""
+        phone_number = attrs.get("phone_number") or ""
+        identifier = attrs.get("identifier") or ""
         password = attrs.get("password") or ""
         email = email.lower().strip() if isinstance(email, str) else ""
+        phone_number = self._normalize_phone(phone_number) if isinstance(phone_number, str) else ""
+        identifier = identifier.strip() if isinstance(identifier, str) else ""
 
-        try:
-            user = User.objects.get(email__iexact=email)
-        except User.DoesNotExist:
-            user = None
+        user = None
+        # 1) Compat: login historique via email
+        if email:
+            user = User.objects.filter(email__iexact=email).first()
+        # 2) Nouveau: via phone_number (profil)
+        if user is None and phone_number:
+            qs = UserProfile.objects.filter(phone_number=phone_number).select_related("user")
+            if qs.count() == 1:
+                user = qs.first().user
+            elif qs.count() > 1:
+                raise AuthenticationFailed("Plusieurs comptes correspondent à ce numéro. Utilisez l'email.")
+        # 3) Optionnel: champ unique `identifier` (email ou numéro) pour clients qui préfèrent 1 champ
+        if user is None and identifier:
+            maybe_email = identifier.lower().strip()
+            if "@" in maybe_email:
+                user = User.objects.filter(email__iexact=maybe_email).first()
+            if user is None:
+                norm = self._normalize_phone(identifier)
+                qs = UserProfile.objects.filter(phone_number=norm).select_related("user")
+                if qs.count() == 1:
+                    user = qs.first().user
+                elif qs.count() > 1:
+                    raise AuthenticationFailed("Plusieurs comptes correspondent à ce numéro. Utilisez l'email.")
 
         # Message volontairement identique au SimpleJWT (FR/EN selon configuration).
         if not user or not user.is_active:

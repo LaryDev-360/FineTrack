@@ -270,7 +270,7 @@ Base URL : `/api/`
 
 ## Authentification JWT
 
-- **Login** : `POST /api/auth/login/` avec `email` + `password` (ou `phone` selon implémentation). Réponse : `access` + `refresh` tokens.
+- **Login** : `POST /api/auth/login/` avec `email` + `password` **ou** `phone_number` + `password` (alternative : `identifier` + `password`). Réponse : `access` + `refresh` tokens.
 - **Requêtes authentifiées** : header `Authorization: Bearer <access_token>`.
 - **Expiration** : access token court (ex. 15–30 min), refresh token plus long (ex. 7 jours).
 - **Refresh** : `POST /api/auth/refresh/` avec `{"refresh": "<refresh_token>"}` pour obtenir un nouveau `access`.
