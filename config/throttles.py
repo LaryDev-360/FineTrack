@@ -1,19 +1,19 @@
 """Throttling par scope pour les endpoints d’authentification (limitation par IP)."""
 
-from rest_framework.throttling import SimpleRateThrottle
+from rest_framework.throttling import AnonRateThrottle
 
 
-class RegisterThrottle(SimpleRateThrottle):
+class RegisterThrottle(AnonRateThrottle):
     scope = "register"
 
 
-class LoginThrottle(SimpleRateThrottle):
+class LoginThrottle(AnonRateThrottle):
     scope = "login"
 
 
-class PasswordResetThrottle(SimpleRateThrottle):
+class PasswordResetThrottle(AnonRateThrottle):
     scope = "password_reset"
 
 
-class TokenRefreshThrottle(SimpleRateThrottle):
+class TokenRefreshThrottle(AnonRateThrottle):
     scope = "refresh"
