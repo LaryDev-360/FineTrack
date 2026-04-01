@@ -1,6 +1,6 @@
-"""Throttling par scope pour les endpoints d’authentification (limitation par IP)."""
+"""Throttling par scope pour auth et endpoints RAG."""
 
-from rest_framework.throttling import AnonRateThrottle
+from rest_framework.throttling import AnonRateThrottle, UserRateThrottle
 
 
 class RegisterThrottle(AnonRateThrottle):
@@ -17,3 +17,11 @@ class PasswordResetThrottle(AnonRateThrottle):
 
 class TokenRefreshThrottle(AnonRateThrottle):
     scope = "refresh"
+
+
+class FundingQueryThrottle(UserRateThrottle):
+    scope = "funding_query"
+
+
+class FundingIngestThrottle(UserRateThrottle):
+    scope = "funding_ingest"

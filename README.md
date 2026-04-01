@@ -115,7 +115,8 @@ backend/
 │   ├── statistics/      # Résumés, par catégorie, tendances
 │   ├── accounting/    # Comptabilité automatisée, bilans, KPIs, export bilans
 │   ├── export/          # Export CSV / JSON
-│   └── payments/        # Paiements QR (intents, confirmation)
+│   ├── payments/        # Paiements QR (intents, confirmation)
+│   └── funding_rag/     # RAG financement (ingestion, retrieval, ask)
 └── tests/
 ```
 
@@ -267,6 +268,46 @@ Base URL : `/api/`
 **Flux** : (1) Marchand professionnel appelle `GET /api/merchant/me/` pour obtenir son `merchant_id` (QR statique) ou `POST /api/payments/intents/` pour un QR dynamique (montant + compte). (2) Client scanne le QR (payload `finetrack://pay/d/<uuid>`). (3) App client appelle `GET /api/payments/intents/<uuid>/` pour afficher montant et marchand. (4) Client confirme avec `POST /api/payments/confirm/` → débit du compte du client, crédit du compte du marchand, création des transactions.
 
 ---
+
+### Funding RAG (probleme P3)
+
+| Méthode | Endpoint | Description |
+|---------|----------|-------------|
+| POST | `/api/funding/ask/` | Pose une question financement et retourne une reponse avec citations |
+| POST | `/api/funding/ingest/` | Ingestion d'un lot de sources (admin uniquement) |
+| GET  | `/api/funding/sources/` | Liste des documents de financement indexes |
+| POST | `/api/funding/reindex/` | Regeneration des embeddings (admin uniquement) |
+
+Exemple de payload ingestion:
+
+```json
+{
+  "source_label": "batch-ministere-2026",
+  "documents": [
+    {
+      "title": "Fonds PME Benin",
+      "content": "Texte source...",
+      "source_url": "https://example.org/fonds",
+      "source_type": "grant",
+      "language": "fr",
+      "country": "BJ",
+      "status": "published",
+      "metadata": {
+        "secteur": "agroalimentaire",
+        "montant_max": "10000000 XOF"
+      }
+    }
+  ]
+}
+```
+
+Variables d'environnement RAG:
+- `RAG_EMBEDDING_DIM` (defaut `128`)
+- `RAG_CHUNK_SIZE` (defaut `800`)
+- `RAG_CHUNK_OVERLAP` (defaut `120`)
+
+Note PostgreSQL:
+- La migration RAG active l'extension `vector` (`CREATE EXTENSION IF NOT EXISTS vector`) pour utiliser `pgvector`.
 
 ## Authentification JWT
 

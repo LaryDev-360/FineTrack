@@ -31,6 +31,7 @@ INSTALLED_APPS = [
     "django.contrib.admin",
     "django.contrib.auth",
     "django.contrib.contenttypes",
+    "django.contrib.postgres",
     "django.contrib.sessions",
     "django.contrib.messages",
     "django.contrib.staticfiles",
@@ -49,6 +50,7 @@ INSTALLED_APPS = [
     "apps.accounting",
     "apps.export",
     "apps.payments",
+    "apps.funding_rag",
 ]
 
 MIDDLEWARE = [
@@ -136,6 +138,8 @@ REST_FRAMEWORK = {
         "login": "30/minute",
         "password_reset": "10/hour",
         "refresh": "120/minute",
+        "funding_query": "60/hour",
+        "funding_ingest": "30/hour",
     },
 }
 
@@ -175,3 +179,8 @@ SIMPLE_JWT = {
     "ACCESS_TOKEN_LIFETIME": timedelta(hours=8),
     "REFRESH_TOKEN_LIFETIME": timedelta(days=7),
 }
+
+# RAG settings
+RAG_EMBEDDING_DIM = int(os.environ.get("RAG_EMBEDDING_DIM", "128"))
+RAG_CHUNK_SIZE = int(os.environ.get("RAG_CHUNK_SIZE", "800"))
+RAG_CHUNK_OVERLAP = int(os.environ.get("RAG_CHUNK_OVERLAP", "120"))
