@@ -4,7 +4,7 @@ from rest_framework import status
 from rest_framework.test import APIClient
 
 from .models import FundingChunk, FundingDocument, RagQueryLog
-from .services import chunk_text
+from .services import chunk_text, resolve_query_language
 
 User = get_user_model()
 
@@ -15,6 +15,18 @@ class ChunkingTests(TestCase):
         chunks = chunk_text(text, chunk_size=300, overlap=50)
         self.assertGreaterEqual(len(chunks), 3)
         self.assertEqual(chunks[0][-50:], chunks[1][:50])
+
+
+class LanguageResolutionTests(TestCase):
+    def test_detects_english_marker(self):
+        lang, reason = resolve_query_language("What funding options are available for my business?")
+        self.assertEqual(lang, "en")
+        self.assertTrue(reason.startswith("detected_"))
+
+    def test_uses_profile_fallback(self):
+        lang, reason = resolve_query_language("question neutre", user_profile_language="fr")
+        self.assertEqual(lang, "fr")
+        self.assertEqual(reason, "profile_fallback")
 
 
 class FundingRagApiTests(TestCase):
@@ -78,6 +90,9 @@ class FundingRagApiTests(TestCase):
         self.assertEqual(ask_response.status_code, status.HTTP_200_OK)
         self.assertIn("answer", ask_response.data)
         self.assertIn("citations", ask_response.data)
+        self.assertIn("detected_language", ask_response.data)
+        self.assertIn("model_used", ask_response.data)
+        self.assertIn("fallback_reason", ask_response.data)
         self.assertGreaterEqual(len(ask_response.data["citations"]), 1)
         self.assertEqual(RagQueryLog.objects.count(), 1)
 

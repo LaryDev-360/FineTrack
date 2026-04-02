@@ -138,7 +138,8 @@ REST_FRAMEWORK = {
         "login": "30/minute",
         "password_reset": "10/hour",
         "refresh": "120/minute",
-        "funding_query": "60/hour",
+        "funding_query": "40/hour",
+        "funding_llm": "20/hour",
         "funding_ingest": "30/hour",
     },
 }
@@ -184,3 +185,15 @@ SIMPLE_JWT = {
 RAG_EMBEDDING_DIM = int(os.environ.get("RAG_EMBEDDING_DIM", "128"))
 RAG_CHUNK_SIZE = int(os.environ.get("RAG_CHUNK_SIZE", "800"))
 RAG_CHUNK_OVERLAP = int(os.environ.get("RAG_CHUNK_OVERLAP", "120"))
+RAG_SUPPORTED_LANGUAGES = _split_csv_env(os.environ.get("RAG_SUPPORTED_LANGUAGES", "fr,en,fon,yo"))
+RAG_MAX_CONTEXT_CHUNKS = int(os.environ.get("RAG_MAX_CONTEXT_CHUNKS", "6"))
+RAG_MIN_RELEVANCE_SCORE = float(os.environ.get("RAG_MIN_RELEVANCE_SCORE", "0.25"))
+
+# OpenRouter / LLM
+OPENROUTER_API_KEY = os.environ.get("OPENROUTER_API_KEY", "")
+OPENROUTER_BASE_URL = os.environ.get("OPENROUTER_BASE_URL", "https://openrouter.ai/api/v1/chat/completions")
+RAG_LLM_MODEL = os.environ.get("RAG_LLM_MODEL", "openai/gpt-4o-mini")
+RAG_EMBED_MODEL = os.environ.get("RAG_EMBED_MODEL", "hash-local")
+RAG_LLM_TIMEOUT_SECONDS = int(os.environ.get("RAG_LLM_TIMEOUT_SECONDS", "20"))
+RAG_LLM_MAX_RETRIES = int(os.environ.get("RAG_LLM_MAX_RETRIES", "2"))
+RAG_LLM_RETRY_BACKOFF_SECONDS = float(os.environ.get("RAG_LLM_RETRY_BACKOFF_SECONDS", "1.0"))

@@ -117,7 +117,12 @@ class RagQueryLog(models.Model):
     response_text = models.TextField(blank=True)
     selected_chunks = models.JSONField(default=list, blank=True)
     provider = models.CharField(max_length=50, default="local-hash")
+    model_used = models.CharField(max_length=100, blank=True)
+    detected_language = models.CharField(max_length=8, blank=True)
+    language_fallback_reason = models.CharField(max_length=120, blank=True)
     latency_ms = models.PositiveIntegerField(default=0)
+    prompt_tokens = models.PositiveIntegerField(default=0)
+    completion_tokens = models.PositiveIntegerField(default=0)
     estimated_cost_usd = models.DecimalField(max_digits=12, decimal_places=6, default=0)
     created_at = models.DateTimeField(auto_now_add=True)
 

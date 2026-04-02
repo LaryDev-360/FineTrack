@@ -273,7 +273,7 @@ Base URL : `/api/`
 
 | Méthode | Endpoint | Description |
 |---------|----------|-------------|
-| POST | `/api/funding/ask/` | Pose une question financement et retourne une reponse avec citations |
+| POST | `/api/funding/ask/` | Pose une question financement et retourne une reponse RAG + LLM avec citations |
 | POST | `/api/funding/ingest/` | Ingestion d'un lot de sources (admin uniquement) |
 | GET  | `/api/funding/sources/` | Liste des documents de financement indexes |
 | POST | `/api/funding/reindex/` | Regeneration des embeddings (admin uniquement) |
@@ -305,6 +305,29 @@ Variables d'environnement RAG:
 - `RAG_EMBEDDING_DIM` (defaut `128`)
 - `RAG_CHUNK_SIZE` (defaut `800`)
 - `RAG_CHUNK_OVERLAP` (defaut `120`)
+- `RAG_SUPPORTED_LANGUAGES` (defaut `fr,en,fon,yo`)
+- `RAG_MAX_CONTEXT_CHUNKS` (defaut `6`)
+- `RAG_MIN_RELEVANCE_SCORE` (defaut `0.25`)
+- `OPENROUTER_API_KEY` (requis pour generation LLM)
+- `OPENROUTER_BASE_URL` (defaut OpenRouter chat completions)
+- `RAG_LLM_MODEL` (ex: `openai/gpt-4o-mini`)
+- `RAG_LLM_TIMEOUT_SECONDS`, `RAG_LLM_MAX_RETRIES`, `RAG_LLM_RETRY_BACKOFF_SECONDS`
+
+Exemple payload ask multilingue:
+
+```json
+{
+  "question": "What funding is available for a small agribusiness?",
+  "top_k": 5,
+  "country": "BJ",
+  "preferred_language": "en"
+}
+```
+
+Exemple champs supplementaires de reponse:
+- `detected_language`
+- `model_used`
+- `fallback_reason`
 
 Note PostgreSQL:
 - La migration RAG active l'extension `vector` (`CREATE EXTENSION IF NOT EXISTS vector`) pour utiliser `pgvector`.

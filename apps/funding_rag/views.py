@@ -4,7 +4,7 @@ from rest_framework.permissions import IsAdminUser, IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from config.throttles import FundingIngestThrottle, FundingQueryThrottle
+from config.throttles import FundingIngestThrottle, FundingLLMThrottle, FundingQueryThrottle
 
 from .serializers import (
     AskRequestSerializer,
@@ -24,7 +24,7 @@ from .services import ask_funding_question, ingest_documents, list_sources_query
 )
 class FundingAskView(APIView):
     permission_classes = (IsAuthenticated,)
-    throttle_classes = (FundingQueryThrottle,)
+    throttle_classes = (FundingQueryThrottle, FundingLLMThrottle)
 
     def post(self, request):
         serializer = AskRequestSerializer(data=request.data)
@@ -37,6 +37,7 @@ class FundingAskView(APIView):
             top_k=payload["top_k"],
             country=(payload.get("country") or "").strip(),
             language=(payload.get("language") or "").strip(),
+            preferred_language=(payload.get("preferred_language") or "").strip(),
         )
         return Response(
             {
@@ -44,6 +45,9 @@ class FundingAskView(APIView):
                 "confidence": result["confidence"],
                 "citations": result["citations"],
                 "limits": result["limits"],
+                "detected_language": result["detected_language"],
+                "model_used": result["model_used"],
+                "fallback_reason": result["fallback_reason"],
             },
             status=status.HTTP_200_OK,
         )

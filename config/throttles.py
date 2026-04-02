@@ -23,5 +23,9 @@ class FundingQueryThrottle(UserRateThrottle):
     scope = "funding_query"
 
 
+class FundingLLMThrottle(UserRateThrottle):
+    scope = "funding_llm"
+
+
 class FundingIngestThrottle(UserRateThrottle):
     scope = "funding_ingest"

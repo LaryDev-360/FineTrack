@@ -42,6 +42,7 @@ class AskRequestSerializer(serializers.Serializer):
     top_k = serializers.IntegerField(required=False, min_value=1, max_value=10, default=5)
     country = serializers.CharField(required=False, allow_blank=True)
     language = serializers.CharField(required=False, allow_blank=True)
+    preferred_language = serializers.CharField(required=False, allow_blank=True, max_length=8)
 
     def validate_question(self, value):
         question = value.strip()
@@ -64,6 +65,9 @@ class AskResponseSerializer(serializers.Serializer):
     confidence = serializers.FloatField()
     citations = CitationSerializer(many=True)
     limits = serializers.ListField(child=serializers.CharField(), default=list)
+    detected_language = serializers.CharField()
+    model_used = serializers.CharField()
+    fallback_reason = serializers.CharField(allow_blank=True)
 
 
 class ReindexRequestSerializer(serializers.Serializer):

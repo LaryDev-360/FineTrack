@@ -9,6 +9,7 @@ from django.db import connection, transaction
 from django.db.models import Count
 from django.utils import timezone
 
+from .llm_client import LLMClientError, generate_answer_with_openrouter
 from .models import FundingChunk, FundingDocument, IngestionJob, RagQueryLog
 
 
@@ -52,6 +53,46 @@ def embed_text(text: str) -> list[float]:
 
 def _to_pgvector_literal(vector: Iterable[float]) -> str:
     return "[" + ",".join(f"{float(value):.8f}" for value in vector) + "]"
+
+
+def resolve_query_language(
+    question: str,
+    user_profile_language: str = "",
+    preferred_language: str = "",
+) -> tuple[str, str]:
+    supported = {item.lower() for item in getattr(settings, "RAG_SUPPORTED_LANGUAGES", ["fr", "en"])}
+    preferred = (preferred_language or "").strip().lower()
+    if preferred and preferred in supported:
+        return preferred, "preferred_language"
+
+    text = _normalize_text(question).lower()
+    if not text:
+        if user_profile_language and user_profile_language.lower() in supported:
+            return user_profile_language.lower(), "profile_fallback_empty_question"
+        return "fr", "default_fallback_empty_question"
+
+    english_markers = {"the", "what", "where", "loan", "funding", "business", "eligible", "requirements"}
+    french_markers = {"quel", "quelle", "financement", "credit", "subvention", "entreprise", "eligibilite"}
+    yoruba_markers = {"owo", "kini", "ile", "ise", "awon", "owo-owo"}
+    fon_markers = {"gbeta", "xo", "nu", "kpin", "doton", "wema"}
+
+    tokens = {tok for tok in re.split(r"\W+", text) if tok}
+    if tokens & yoruba_markers and "yo" in supported:
+        return "yo", "detected_question_markers"
+    if tokens & fon_markers and "fon" in supported:
+        return "fon", "detected_question_markers"
+    if tokens & english_markers and "en" in supported:
+        return "en", "detected_question_markers"
+    if tokens & french_markers and "fr" in supported:
+        return "fr", "detected_question_markers"
+
+    if any(ch in text for ch in ("é", "è", "à", "ù", "ç")) and "fr" in supported:
+        return "fr", "detected_question_accents"
+
+    profile_lang = (user_profile_language or "").strip().lower()
+    if profile_lang in supported:
+        return profile_lang, "profile_fallback"
+    return "fr", "default_fallback"
 
 
 def ingest_documents(*, documents: list[dict], created_by=None, source_label: str = "") -> IngestionJob:
@@ -198,24 +239,10 @@ def rerank_chunks(retrieved: list[dict]) -> list[dict]:
     return reranked
 
 
-def build_answer(reranked_chunks: list[dict], top_k: int) -> tuple[str, list[dict], float, list[str]]:
-    selected = reranked_chunks[:top_k]
-    if not selected:
-        return (
-            "Je ne trouve pas d'information fiable dans les sources disponibles pour cette question.",
-            [],
-            0.0,
-            ["Aucune source pertinente n'a ete retrouvee."],
-        )
-
-    seen_doc_ids = set()
-    key_points = []
+def _build_citations_from_selected(selected: list[dict]) -> list[dict]:
     citations = []
     for item in selected:
         chunk = item["chunk"]
-        if chunk.document_id not in seen_doc_ids:
-            seen_doc_ids.add(chunk.document_id)
-            key_points.append(f"- {chunk.document.title}: {chunk.content[:180].strip()}...")
         citations.append(
             {
                 "chunk_id": chunk.id,
@@ -226,6 +253,55 @@ def build_answer(reranked_chunks: list[dict], top_k: int) -> tuple[str, list[dic
                 "excerpt": chunk.content[:220].strip(),
             }
         )
+    return citations
+
+
+def _reconcile_citations(llm_citations: list[dict], selected: list[dict]) -> list[dict]:
+    selected_by_chunk = {item["chunk"].id: item for item in selected}
+    selected_by_doc = {}
+    for item in selected:
+        selected_by_doc.setdefault(item["chunk"].document_id, item)
+
+    citations = []
+    for row in llm_citations:
+        chunk_id = int(row.get("chunk_id") or 0)
+        document_id = int(row.get("document_id") or 0)
+        item = selected_by_chunk.get(chunk_id) or selected_by_doc.get(document_id)
+        if not item:
+            continue
+        chunk = item["chunk"]
+        citations.append(
+            {
+                "chunk_id": chunk.id,
+                "document_id": chunk.document_id,
+                "document_title": chunk.document.title,
+                "source_url": chunk.document.source_url or "",
+                "score": float(item["score"]),
+                "excerpt": chunk.content[:220].strip(),
+            }
+        )
+    return citations
+
+
+def _build_local_answer(reranked_chunks: list[dict], top_k: int) -> tuple[str, list[dict], float, list[str]]:
+    selected = reranked_chunks[:top_k]
+    if not selected:
+        return (
+            "Je ne trouve pas d'information fiable dans les sources disponibles pour cette question.",
+            [],
+            0.0,
+            ["Aucune source pertinente n'a ete retrouvee."],
+        )
+
+    citations = _build_citations_from_selected(selected)
+    seen_doc_ids = set()
+    key_points = []
+    for citation in citations:
+        doc_id = citation["document_id"]
+        if doc_id in seen_doc_ids:
+            continue
+        seen_doc_ids.add(doc_id)
+        key_points.append(f"- {citation['document_title']}: {citation['excerpt'][:180].strip()}...")
 
     answer = (
         "Voici les informations de financement les plus pertinentes selon vos criteres.\n"
@@ -239,18 +315,85 @@ def build_answer(reranked_chunks: list[dict], top_k: int) -> tuple[str, list[dic
     return answer, citations, confidence, limits
 
 
-def ask_funding_question(*, user, question: str, top_k: int, country: str = "", language: str = "") -> dict:
+def ask_funding_question(
+    *,
+    user,
+    question: str,
+    top_k: int,
+    country: str = "",
+    language: str = "",
+    preferred_language: str = "",
+) -> dict:
     start = time.perf_counter()
     normalized_question = _normalize_text(question)
+    if not normalized_question:
+        normalized_question = question.strip()
+
+    user_profile_language = ""
+    if hasattr(user, "profile") and getattr(user.profile, "language", ""):
+        user_profile_language = user.profile.language
+    if language:
+        user_profile_language = language
+
+    detected_language, language_fallback_reason = resolve_query_language(
+        normalized_question,
+        user_profile_language=user_profile_language,
+        preferred_language=preferred_language,
+    )
+
+    retrieval_language = detected_language if detected_language in {"fr", "en"} else ""
+    max_context_chunks = max(1, int(getattr(settings, "RAG_MAX_CONTEXT_CHUNKS", 6)))
     retrieved = retrieve_chunks(
         normalized_question,
-        top_k=max(top_k * 2, 6),
+        top_k=max(top_k * 2, max_context_chunks),
         country=country,
-        language=language,
+        language=retrieval_language,
     )
     reranked = rerank_chunks(retrieved)
-    answer, citations, confidence, limits = build_answer(reranked, top_k=top_k)
+
+    min_relevance = float(getattr(settings, "RAG_MIN_RELEVANCE_SCORE", 0.25))
+    selected = [item for item in reranked if float(item["score"]) >= min_relevance][:max_context_chunks]
+    if not selected:
+        selected = reranked[:max_context_chunks]
+
+    model_used = "rag-fallback-local"
+    provider = "local-fallback"
+    prompt_tokens = 0
+    completion_tokens = 0
+    if not selected:
+        answer, citations, confidence, limits = _build_local_answer([], top_k=top_k)
+        limits.append("Contexte insuffisant pour generation LLM.")
+    else:
+        context_chunks = _build_citations_from_selected(selected)
+        try:
+            llm = generate_answer_with_openrouter(
+                question=normalized_question,
+                context_chunks=context_chunks,
+                language=detected_language,
+            )
+            citations = _reconcile_citations(llm.citations, selected)
+            if not citations:
+                citations = context_chunks[:top_k]
+            answer = llm.answer or "Je n'ai pas assez d'informations pour repondre de maniere fiable."
+            confidence = float(llm.confidence or 0.0)
+            limits = llm.limits or [
+                "Verifier les criteres d'eligibilite aupres de l'organisme financier.",
+            ]
+            model_used = llm.model_used
+            provider = "openrouter"
+            prompt_tokens = llm.prompt_tokens
+            completion_tokens = llm.completion_tokens
+        except LLMClientError:
+            answer, citations, confidence, limits = _build_local_answer(selected, top_k=top_k)
+            limits.append("Generation LLM indisponible: fallback local active.")
+            model_used = "rag-fallback-local"
+            provider = "local-fallback"
+
     latency_ms = int((time.perf_counter() - start) * 1000)
+    estimated_cost = 0
+    total_tokens = prompt_tokens + completion_tokens
+    if total_tokens > 0:
+        estimated_cost = round(total_tokens * 0.0000005, 6)
 
     RagQueryLog.objects.create(
         user=user,
@@ -260,9 +403,14 @@ def ask_funding_question(*, user, question: str, top_k: int, country: str = "", 
         selected_chunks=[
             {"chunk_id": citation["chunk_id"], "score": citation["score"]} for citation in citations
         ],
-        provider="local-hash",
+        provider=provider,
+        model_used=model_used,
+        detected_language=detected_language,
+        language_fallback_reason=language_fallback_reason,
         latency_ms=latency_ms,
-        estimated_cost_usd=0,
+        prompt_tokens=prompt_tokens,
+        completion_tokens=completion_tokens,
+        estimated_cost_usd=estimated_cost,
     )
 
     return {
@@ -270,6 +418,9 @@ def ask_funding_question(*, user, question: str, top_k: int, country: str = "", 
         "confidence": confidence,
         "citations": citations,
         "limits": limits,
+        "detected_language": detected_language,
+        "model_used": model_used,
+        "fallback_reason": language_fallback_reason,
         "latency_ms": latency_ms,
     }
 
