@@ -341,7 +341,10 @@ def ask_funding_question(
         preferred_language=preferred_language,
     )
 
-    retrieval_language = detected_language if detected_language in {"fr", "en"} else ""
+    # Important: ne pas forcer le filtre par langue detectee, sinon une question EN
+    # peut exclure toutes les sources FR pertinentes. Le filtre langue doit rester
+    # explicite (parametre `language`) ; la langue detectee sert surtout la generation.
+    retrieval_language = (language or "").strip().lower()
     max_context_chunks = max(1, int(getattr(settings, "RAG_MAX_CONTEXT_CHUNKS", 6)))
     retrieved = retrieve_chunks(
         normalized_question,
@@ -349,6 +352,14 @@ def ask_funding_question(
         country=country,
         language=retrieval_language,
     )
+    # Si un filtre langue explicite est trop restrictif, fallback sans filtre langue.
+    if not retrieved and retrieval_language:
+        retrieved = retrieve_chunks(
+            normalized_question,
+            top_k=max(top_k * 2, max_context_chunks),
+            country=country,
+            language="",
+        )
     reranked = rerank_chunks(retrieved)
 
     min_relevance = float(getattr(settings, "RAG_MIN_RELEVANCE_SCORE", 0.25))
