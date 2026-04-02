@@ -62,33 +62,68 @@ def resolve_query_language(
 ) -> tuple[str, str]:
     supported = {item.lower() for item in getattr(settings, "RAG_SUPPORTED_LANGUAGES", ["fr", "en"])}
     preferred = (preferred_language or "").strip().lower()
-    if preferred and preferred in supported:
-        return preferred, "preferred_language"
-
     text = _normalize_text(question).lower()
     if not text:
+        if preferred and preferred in supported:
+            return preferred, "preferred_language_empty_question"
         if user_profile_language and user_profile_language.lower() in supported:
             return user_profile_language.lower(), "profile_fallback_empty_question"
         return "fr", "default_fallback_empty_question"
 
-    english_markers = {"the", "what", "where", "loan", "funding", "business", "eligible", "requirements"}
-    french_markers = {"quel", "quelle", "financement", "credit", "subvention", "entreprise", "eligibilite"}
+    english_markers = {
+        "the",
+        "what",
+        "where",
+        "loan",
+        "loans",
+        "funding",
+        "business",
+        "eligible",
+        "requirements",
+        "for",
+        "small",
+        "company",
+    }
+    french_markers = {
+        "quel",
+        "quels",
+        "quelle",
+        "quelles",
+        "financement",
+        "financements",
+        "credit",
+        "credits",
+        "subvention",
+        "subventions",
+        "entreprise",
+        "entreprises",
+        "eligibilite",
+        "pme",
+        "benin",
+    }
     yoruba_markers = {"owo", "kini", "ile", "ise", "awon", "owo-owo"}
     fon_markers = {"gbeta", "xo", "nu", "kpin", "doton", "wema"}
 
     tokens = {tok for tok in re.split(r"\W+", text) if tok}
-    if tokens & yoruba_markers and "yo" in supported:
+    score_yo = len(tokens & yoruba_markers)
+    score_fon = len(tokens & fon_markers)
+    score_en = len(tokens & english_markers)
+    score_fr = len(tokens & french_markers)
+
+    if score_yo > 0 and "yo" in supported and score_yo >= max(score_fon, score_en, score_fr):
         return "yo", "detected_question_markers"
-    if tokens & fon_markers and "fon" in supported:
+    if score_fon > 0 and "fon" in supported and score_fon >= max(score_yo, score_en, score_fr):
         return "fon", "detected_question_markers"
-    if tokens & english_markers and "en" in supported:
-        return "en", "detected_question_markers"
-    if tokens & french_markers and "fr" in supported:
+    if score_fr > 0 and "fr" in supported and score_fr >= max(score_en, score_yo, score_fon):
         return "fr", "detected_question_markers"
+    if score_en > 0 and "en" in supported:
+        return "en", "detected_question_markers"
 
     if any(ch in text for ch in ("é", "è", "à", "ù", "ç")) and "fr" in supported:
         return "fr", "detected_question_accents"
 
+    if preferred and preferred in supported:
+        return preferred, "preferred_language"
     profile_lang = (user_profile_language or "").strip().lower()
     if profile_lang in supported:
         return profile_lang, "profile_fallback"

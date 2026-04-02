@@ -28,6 +28,14 @@ class LanguageResolutionTests(TestCase):
         self.assertEqual(lang, "fr")
         self.assertEqual(reason, "profile_fallback")
 
+    def test_prefers_detected_language_over_preferred_language(self):
+        lang, reason = resolve_query_language(
+            "Quels financements existent pour une PME agroalimentaire au Benin ?",
+            preferred_language="en",
+        )
+        self.assertEqual(lang, "fr")
+        self.assertEqual(reason, "detected_question_markers")
+
 
 class FundingRagApiTests(TestCase):
     def setUp(self):
